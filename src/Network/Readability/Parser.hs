@@ -1,12 +1,20 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Network.Readability.Parser
-    ( ParserResult(..)
+    ( ReadabilityParserToken(..)
+    , Article(..)
+    , parseByUrl
     ) where
 
 import Data.Text (Text)
+import Data.Aeson (decode)
 import Data.Aeson.TH (deriveFromJSON, defaultOptions)
 
-data ParserResult = ParserResult
+import Network.URI (escapeURIString, isReserved)
+import Network.HTTP.Conduit (simpleHttp)
+
+newtype ReadabilityParserToken = ReadabilityParserToken String deriving (Eq, Show)
+
+data Article = Article
     { content :: Text -- Html
     , domain :: Text -- Url
     , author :: Text
@@ -24,7 +32,16 @@ data ParserResult = ParserResult
     , rendered_pages :: Int
     } deriving (Show, Eq)
 
-$(deriveFromJSON defaultOptions ''ParserResult)
+$(deriveFromJSON defaultOptions ''Article)
 
--- parser :: ReadabilityToken -> Maybe Url -> Maybe ArticleId -> Maybe Int -> IO ParserResult
--- parser = undefined
+apiBase :: String
+apiBase = "https://readability.com/api/content/v1"
+
+urlEscape :: String -> String
+urlEscape = escapeURIString (not . isReserved)
+
+parseByUrl :: ReadabilityParserToken -> String -> Maybe Int -> IO (Maybe Article)
+parseByUrl (ReadabilityParserToken token) article_url maximumPages = fmap decode $ simpleHttp request
+    where
+        request = apiBase ++ "/parser?token=" ++ token ++ "&url=" ++ urlEscape article_url ++
+            (maybe "" (("&max_pages=" ++) . show) maximumPages)
