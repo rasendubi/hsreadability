@@ -20,20 +20,20 @@ import Network.HTTP.Conduit (parseUrl, responseBody, setQueryString, withManager
 newtype ParserToken = ParserToken BS.ByteString deriving (Eq, Show)
 
 data Article = Article
-    { content :: Text -- Html
+    { content :: Maybe Text -- Html
     , domain :: Text -- Url
-    , author :: Text
+    , author :: Maybe Text
     , url :: Text -- Url
     , short_url :: Text -- Url
-    , title :: Text
-    , excerpt :: Text
-    , direction :: Text -- make data type?
+    , title :: Maybe Text
+    , excerpt :: Maybe Text
+    , direction :: Maybe Text -- make data type?
     , word_count :: Integer
     , total_pages :: Integer
     , date_published :: Maybe Text -- Date
     , dek :: Maybe Text -- or Html?
     , lead_image_url :: Maybe Text -- Url
-    , next_page_id :: Maybe Int -- pageId?
+    , next_page_id :: Maybe Text -- pageId?
     , rendered_pages :: Int
     } deriving (Show, Eq)
 

@@ -22,14 +22,14 @@ tests =
 
 test_parser_json1 = assertEqual "decode example /parser response"
     (Just Article
-        { content = "<div class=\"article-text\">\n<p>I'm idling outside Diamante's, [snip] ...</p></div>"
+        { content = Just "<div class=\"article-text\">\n<p>I'm idling outside Diamante's, [snip] ...</p></div>"
         , domain = "www.gq.com"
-        , author = "Rafi Kohan"
+        , author = Just "Rafi Kohan"
         , url = "http://www.gq.com/sports/profiles/201202/david-diamante-interview-cigar-lounge-brooklyn-new-jersey-nets?currentPage=all"
         , short_url = "http://rdd.me/g3jcb1sr"
-        , title = "Blowing Smoke with Boxing's Big Voice"
-        , excerpt = "I'm idling outside Diamante's, a cigar lounge in Fort Greene, waiting for David Diamante, and soon I smell him coming. It's late January but warm. A motorcycle growls down the Brooklyn side street,&hellip;"
-        , direction = "ltr"
+        , title = Just "Blowing Smoke with Boxing's Big Voice"
+        , excerpt = Just "I'm idling outside Diamante's, a cigar lounge in Fort Greene, waiting for David Diamante, and soon I smell him coming. It's late January but warm. A motorcycle growls down the Brooklyn side street,&hellip;"
+        , direction = Just "ltr"
         , word_count = 2892
         , total_pages = 1
         , date_published = Nothing
