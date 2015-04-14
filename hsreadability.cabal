@@ -1,7 +1,8 @@
 name:                hsreadability
 version:             0.1.0.0
 synopsis:            Access to the Readability API.
--- description:         
+description:         This package provides Haskell bindings to the
+                     http://readability.com/ API.
 license:             MIT
 license-file:        LICENSE
 author:              Alexey Shmalko
@@ -24,3 +25,17 @@ library
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall
+
+test-suite test-hsreadability
+  type:                exitcode-stdio-1.0
+  main-is:             Main.hs
+  build-depends:       base >=4.7 && <4.8
+                     , hsreadability
+                     , aeson >=0.8 && <0.9
+                     , text
+                     , HUnit >=1.2 && <1.3
+                     , file-embed >=0.0 && <0.1
+                     , test-framework >=0.8 && <0.9
+                     , test-framework-hunit >=0.3 && < 0.4
+  hs-source-dirs:      tests
+  default-language:    Haskell2010
