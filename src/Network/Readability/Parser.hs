@@ -3,8 +3,10 @@
 module Network.Readability.Parser
     ( ParserToken(..)
     , Article(..)
+    , Confidence(..)
     , parseByUrl
     , parseById
+    , getConfidence
     ) where
 
 import Control.Applicative ((<$>))
@@ -13,7 +15,7 @@ import qualified Data.ByteString.Char8 as BS
 
 import Data.Text (Text)
 import Data.Aeson (FromJSON, decode)
-import Data.Aeson.TH (deriveFromJSON, defaultOptions)
+import Data.Aeson.TH (deriveFromJSON, defaultOptions, fieldLabelModifier)
 
 import Network.HTTP.Conduit (parseUrl, responseBody, setQueryString, withManager, httpLbs)
 
@@ -39,6 +41,13 @@ data Article = Article
 
 $(deriveFromJSON defaultOptions ''Article)
 
+data Confidence = Confidence
+    { conf_url :: Text
+    , conf_confidence :: Double
+    } deriving (Show, Eq)
+
+$(deriveFromJSON defaultOptions{ fieldLabelModifier = drop (length ("conf_" :: String)) } ''Confidence)
+
 apiPrefix :: String
 apiPrefix = "https://readability.com/api/content/v1"
 
@@ -57,6 +66,9 @@ parseById (ParserToken token) article_id maximumPages = readabilityRequest "/par
             [ ("token", Just token)
             , ("id", Just article_id)
             ] ++ maybeShowParam "max_pages" maximumPages
+
+getConfidence :: BS.ByteString -> IO (Maybe Confidence)
+getConfidence article_url = readabilityRequest "/confidence" [ ("url", Just article_url) ]
 
 readabilityRequest :: FromJSON a => String -> [(BS.ByteString, Maybe BS.ByteString)] -> IO (Maybe a)
 readabilityRequest api params = do
