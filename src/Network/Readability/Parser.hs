@@ -7,10 +7,12 @@ module Network.Readability.Parser
     , parseById
     ) where
 
+import Control.Applicative ((<$>))
+
 import qualified Data.ByteString.Char8 as BS
 
 import Data.Text (Text)
-import Data.Aeson (decode)
+import Data.Aeson (FromJSON, decode)
 import Data.Aeson.TH (deriveFromJSON, defaultOptions)
 
 import Network.HTTP.Conduit (parseUrl, responseBody, setQueryString, withManager, httpLbs)
@@ -37,14 +39,11 @@ data Article = Article
 
 $(deriveFromJSON defaultOptions ''Article)
 
-apiBase :: String
-apiBase = "https://readability.com/api/content/v1"
+apiPrefix :: String
+apiPrefix = "https://readability.com/api/content/v1"
 
 parseByUrl :: ParserToken -> BS.ByteString -> Maybe Int -> IO (Maybe Article)
-parseByUrl (ParserToken token) article_url maximumPages = do
-    request <- fmap (setQueryString params) $ parseUrl (apiBase ++ "/parser")
-    response <- withManager $ httpLbs request
-    return $ decode $ responseBody response
+parseByUrl (ParserToken token) article_url maximumPages = readabilityRequest "/parser" params
     where
         params =
             [ ("token", Just token)
@@ -52,15 +51,18 @@ parseByUrl (ParserToken token) article_url maximumPages = do
             ] ++ maybeShowParam "max_pages" maximumPages
 
 parseById :: ParserToken -> BS.ByteString -> Maybe Int -> IO (Maybe Article)
-parseById (ParserToken token) article_id maximumPages = do
-    request <- fmap (setQueryString params) $ parseUrl (apiBase ++ "/parser")
-    response <- withManager $ httpLbs request
-    return $ decode $ responseBody response
+parseById (ParserToken token) article_id maximumPages = readabilityRequest "/parser" params
     where
         params =
             [ ("token", Just token)
             , ("id", Just article_id)
             ] ++ maybeShowParam "max_pages" maximumPages
 
+readabilityRequest :: FromJSON a => String -> [(BS.ByteString, Maybe BS.ByteString)] -> IO (Maybe a)
+readabilityRequest api params = do
+    request <- setQueryString params <$> parseUrl (apiPrefix ++ api)
+    response <- withManager $ httpLbs request
+    return $ decode $ responseBody response
+
 maybeShowParam :: (Show a) => BS.ByteString -> Maybe a -> [(BS.ByteString, Maybe BS.ByteString)]
-maybeShowParam name ma = maybe [] (\x -> [(name, Just $ BS.pack $ show x)]) ma
+maybeShowParam name = maybe [] $ \x -> [(name, Just $ BS.pack $ show x)]
