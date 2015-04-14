@@ -1,11 +1,10 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Network.Readability.Parser
-    ( -- parser
-    -- , confidence
+    ( ParserResult(..)
     ) where
 
-import Data.Text
-import Data.Aeson.TH
+import Data.Text (Text)
+import Data.Aeson.TH (deriveFromJSON, defaultOptions)
 
 data ParserResult = ParserResult
     { content :: Text -- Html
@@ -19,11 +18,11 @@ data ParserResult = ParserResult
     , word_count :: Integer
     , total_pages :: Integer
     , date_published :: Maybe Text -- Date
-    , dek :: Text -- or Html?
-    , lead_image_url :: Text -- Url
+    , dek :: Maybe Text -- or Html?
+    , lead_image_url :: Maybe Text -- Url
     , next_page_id :: Maybe Int -- pageId?
-    , rendered_pages :: Text -- Int
-    }
+    , rendered_pages :: Int
+    } deriving (Show, Eq)
 
 $(deriveFromJSON defaultOptions ''ParserResult)
 
