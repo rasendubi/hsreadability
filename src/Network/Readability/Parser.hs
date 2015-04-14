@@ -1,18 +1,21 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Network.Readability.Parser
-    ( ReadabilityParserToken(..)
+    ( ParserToken(..)
     , Article(..)
     , parseByUrl
+    , parseById
     ) where
+
+import qualified Data.ByteString.Char8 as BS
 
 import Data.Text (Text)
 import Data.Aeson (decode)
 import Data.Aeson.TH (deriveFromJSON, defaultOptions)
 
-import Network.URI (escapeURIString, isReserved)
-import Network.HTTP.Conduit (simpleHttp)
+import Network.HTTP.Conduit (parseUrl, responseBody, setQueryString, withManager, httpLbs)
 
-newtype ReadabilityParserToken = ReadabilityParserToken String deriving (Eq, Show)
+newtype ParserToken = ParserToken BS.ByteString deriving (Eq, Show)
 
 data Article = Article
     { content :: Text -- Html
@@ -37,11 +40,27 @@ $(deriveFromJSON defaultOptions ''Article)
 apiBase :: String
 apiBase = "https://readability.com/api/content/v1"
 
-urlEscape :: String -> String
-urlEscape = escapeURIString (not . isReserved)
-
-parseByUrl :: ReadabilityParserToken -> String -> Maybe Int -> IO (Maybe Article)
-parseByUrl (ReadabilityParserToken token) article_url maximumPages = fmap decode $ simpleHttp request
+parseByUrl :: ParserToken -> BS.ByteString -> Maybe Int -> IO (Maybe Article)
+parseByUrl (ParserToken token) article_url maximumPages = do
+    request <- fmap (setQueryString params) $ parseUrl (apiBase ++ "/parser")
+    response <- withManager $ httpLbs request
+    return $ decode $ responseBody response
     where
-        request = apiBase ++ "/parser?token=" ++ token ++ "&url=" ++ urlEscape article_url ++
-            (maybe "" (("&max_pages=" ++) . show) maximumPages)
+        params =
+            [ ("token", Just token)
+            , ("url", Just article_url)
+            ] ++ maybeShowParam "max_pages" maximumPages
+
+parseById :: ParserToken -> BS.ByteString -> Maybe Int -> IO (Maybe Article)
+parseById (ParserToken token) article_id maximumPages = do
+    request <- fmap (setQueryString params) $ parseUrl (apiBase ++ "/parser")
+    response <- withManager $ httpLbs request
+    return $ decode $ responseBody response
+    where
+        params =
+            [ ("token", Just token)
+            , ("id", Just article_id)
+            ] ++ maybeShowParam "max_pages" maximumPages
+
+maybeShowParam :: (Show a) => BS.ByteString -> Maybe a -> [(BS.ByteString, Maybe BS.ByteString)]
+maybeShowParam name ma = maybe [] (\x -> [(name, Just $ BS.pack $ show x)]) ma
