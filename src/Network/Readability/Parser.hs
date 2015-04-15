@@ -4,20 +4,25 @@ module Network.Readability.Parser
     ( ParserToken(..)
     , Article(..)
     , Confidence(..)
+    , ArticleStatus(..)
+    , Status(..)
     , parseByUrl
     , parseById
+    , getContentStatusByUrl
+    , getContentStatusById
     , getConfidence
     ) where
 
 import Control.Applicative ((<$>))
 
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy.Char8 as BL
 
 import Data.Text (Text)
 import Data.Aeson (FromJSON, decode)
 import Data.Aeson.TH (deriveFromJSON, defaultOptions, fieldLabelModifier)
 
-import Network.HTTP.Conduit (parseUrl, responseBody, setQueryString, withManager, httpLbs)
+import Network.HTTP.Conduit (Response, method, parseUrl, responseBody, responseHeaders, setQueryString, withManager, httpLbs)
 
 newtype ParserToken = ParserToken BS.ByteString deriving (Eq, Show)
 
@@ -48,6 +53,14 @@ data Confidence = Confidence
 
 $(deriveFromJSON defaultOptions{ fieldLabelModifier = drop (length ("conf_" :: String)) } ''Confidence)
 
+data ArticleStatus = ArticleStatus
+    { as_article_id :: BS.ByteString
+    , as_article_status :: Status
+    } deriving (Show, Eq)
+
+data Status = Invalid | Unretrieved | ProvidedByUser | ValidatedByUsers | Fetched
+    deriving (Show, Eq)
+
 apiPrefix :: String
 apiPrefix = "https://readability.com/api/content/v1"
 
@@ -67,6 +80,32 @@ parseById (ParserToken token) article_id maximumPages = readabilityRequest "/par
             , ("id", Just article_id)
             ] ++ maybeShowParam "max_pages" maximumPages
 
+getContentStatusByUrl :: ParserToken -> BS.ByteString -> IO (Maybe ArticleStatus)
+getContentStatusByUrl (ParserToken token) article_url = contentStatusRequest params
+    where
+        params =
+            [ ("token", Just token)
+            , ("url", Just article_url)
+            ]
+
+getContentStatusById :: ParserToken -> BS.ByteString -> IO (Maybe ArticleStatus)
+getContentStatusById (ParserToken token) article_id = contentStatusRequest params
+    where
+        params =
+            [ ("token", Just token)
+            , ("id", Just article_id)
+            ]
+
+contentStatusRequest :: [(BS.ByteString, Maybe BS.ByteString)] -> IO (Maybe ArticleStatus)
+contentStatusRequest params = do
+    query <- setQueryString params <$> parseUrl (apiPrefix ++ "/parser")
+    response <- withManager $ httpLbs query{ method = "HEAD" }
+    let headers = responseHeaders response
+    return $ do
+        article_id <- lookup "X-Article-Id" headers
+        article_status <- parseStatus =<< lookup "X-Article-Status" headers
+        return $ ArticleStatus article_id article_status
+
 getConfidence :: BS.ByteString -> IO (Maybe Confidence)
 getConfidence article_url = readabilityRequest "/confidence" [ ("url", Just article_url) ]
 
@@ -78,3 +117,11 @@ readabilityRequest api params = do
 
 maybeShowParam :: (Show a) => BS.ByteString -> Maybe a -> [(BS.ByteString, Maybe BS.ByteString)]
 maybeShowParam name = maybe [] $ \x -> [(name, Just $ BS.pack $ show x)]
+
+parseStatus :: BS.ByteString -> Maybe Status
+parseStatus "INVALID" = Just Invalid
+parseStatus "UNRETRIEVED" = Just Unretrieved
+parseStatus "PROVIDED_BY_USER" = Just ProvidedByUser
+parseStatus "VALIDATED_BY_USERS" = Just ValidatedByUsers
+parseStatus "FETCHED" = Just Fetched
+parseStatus _ = Nothing
