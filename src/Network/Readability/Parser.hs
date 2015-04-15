@@ -23,20 +23,20 @@ newtype ParserToken = ParserToken BS.ByteString deriving (Eq, Show)
 
 data Article = Article
     { content :: Maybe Text -- Html
-    , domain :: Text -- Url
+    , domain :: Maybe Text -- Url
     , author :: Maybe Text
     , url :: Text -- Url
-    , short_url :: Text -- Url
+    , short_url :: Maybe Text -- Url
     , title :: Maybe Text
     , excerpt :: Maybe Text
     , direction :: Maybe Text -- make data type?
     , word_count :: Integer
-    , total_pages :: Integer
+    , total_pages :: Maybe Integer
     , date_published :: Maybe Text -- Date
     , dek :: Maybe Text -- or Html?
     , lead_image_url :: Maybe Text -- Url
     , next_page_id :: Maybe Text -- pageId?
-    , rendered_pages :: Int
+    , rendered_pages :: Maybe Int
     } deriving (Show, Eq)
 
 $(deriveFromJSON defaultOptions ''Article)
