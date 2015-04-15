@@ -14,7 +14,8 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Network.Readability.Parser, Network.Readability.Shortener
+  exposed-modules:     Network.Readability.Parser
+                     , Network.Readability.Shortener
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.7 && <4.8

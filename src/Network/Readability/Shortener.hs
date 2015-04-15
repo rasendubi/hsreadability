@@ -7,15 +7,14 @@ module Network.Readability.Shortener
     , retrieveUrl
     ) where
 
-import Control.Applicative ((<$>))
-
 import qualified Data.ByteString.Char8 as BS
 
 import Data.Text (Text)
-import Data.Aeson (FromJSON, decode)
+import Data.Aeson (decode)
 import Data.Aeson.TH (deriveFromJSON, defaultOptions, fieldLabelModifier)
 
-import Network.HTTP.Conduit --(parseUrl, responseBody, setQueryString, withManager, httpLbs)
+import Network.HTTP.Conduit (RequestBody(..), method, parseUrl, responseBody, requestBody,
+        requestHeaders, withManager, httpLbs)
 
 import Network.Readability.Parser (Article(..))
 
@@ -43,11 +42,10 @@ apiPrefix = "https://readability.com/api/shortener/v1/urls"
 shortenUrl :: String -> IO (Maybe ShortenerResponse)
 shortenUrl source_url  = shortenUrlRequest $ BS.pack source_url
 
-shortenUrlRequest :: FromJSON a => BS.ByteString -> IO (Maybe a)
+shortenUrlRequest :: BS.ByteString -> IO (Maybe ShortenerResponse)
 shortenUrlRequest source_url = do
     initRequest <- parseUrl apiPrefix
-    let request = initRequest { secure = True
-                              , method = "POST"
+    let request = initRequest { method = "POST"
                               , requestHeaders = [("Content-Type", "application/x-www-form-urlencoded")]
                               , requestBody = RequestBodyBS (BS.concat [BS.pack "url=", source_url])
                               }
@@ -56,9 +54,9 @@ shortenUrlRequest source_url = do
 
 
 retrieveUrl :: String -> IO (Maybe ShortenerResponse)
-retrieveUrl url_id = retrieveUrlRequest url_id
+retrieveUrl = retrieveUrlRequest
 
-retrieveUrlRequest :: FromJSON a => String -> IO (Maybe a)
+retrieveUrlRequest :: String -> IO (Maybe ShortenerResponse)
 retrieveUrlRequest url_id = do
     request <- parseUrl (apiPrefix ++ "/" ++ url_id)
     response <- withManager $ httpLbs request
