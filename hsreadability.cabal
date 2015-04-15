@@ -10,13 +10,11 @@ maintainer:          rasen.dubi@gmail.com
 copyright:           Copyright 2015 Alexey Shmalko
 category:            Network APIs
 build-type:          Simple
--- extra-source-files:  
+extra-source-files:  tests/files/parser_article.json
 cabal-version:       >=1.10
 
 library
   exposed-modules:     Network.Readability.Parser
-  -- other-modules:       
-  -- other-extensions:    
   build-depends:       base >=4.7 && <4.8
                      , aeson >=0.8 && <0.9
                      , text

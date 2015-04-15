@@ -16,13 +16,12 @@ module Network.Readability.Parser
 import Control.Applicative ((<$>))
 
 import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Lazy.Char8 as BL
 
 import Data.Text (Text)
 import Data.Aeson (FromJSON, decode)
 import Data.Aeson.TH (deriveFromJSON, defaultOptions, fieldLabelModifier)
 
-import Network.HTTP.Conduit (Response, method, parseUrl, responseBody, responseHeaders, setQueryString, withManager, httpLbs)
+import Network.HTTP.Conduit (method, parseUrl, responseBody, responseHeaders, setQueryString, withManager, httpLbs)
 
 newtype ParserToken = ParserToken BS.ByteString deriving (Eq, Show)
 
