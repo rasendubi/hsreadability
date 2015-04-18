@@ -1,12 +1,16 @@
 name:                hsreadability
 version:             0.1.0.0
 synopsis:            Access to the Readability API.
+
 description:         This package provides Haskell bindings to the
                      http://readability.com/ API.
+
 license:             MIT
 license-file:        LICENSE
 author:              Alexey Shmalko
 maintainer:          rasen.dubi@gmail.com
+homepage:            http://github.com/rasendubi/hsreadability
+bug-reports:         http://github.com/rasendubi/hsreadability/issues
 copyright:           Copyright 2015 Alexey Shmalko
 category:            Network APIs
 build-type:          Simple
@@ -14,14 +18,20 @@ extra-source-files:  tests/files/parser_article.json
                    , tests/files/confidence_response.json
 cabal-version:       >=1.10
 
+tested-with:         GHC == 7.6, GHC == 7.8
+
+source-repository head
+  type:     git
+  location: git://github.com/rasendubi/hsreadability.git
+
 library
   exposed-modules:     Network.Readability.Parser
                      , Network.Readability.Shortener
-  build-depends:       base >=4.7 && <4.8
+  build-depends:       base >=4.6 && <4.8
                      , aeson >=0.6.2 && <0.9
                      , text
-                     , http-conduit >=2.1 && <2.2
-                     , bytestring >=0.10 && <0.11
+                     , http-conduit >=2.0 && <2.2
+                     , bytestring >=0.9 && <0.11
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall
@@ -29,7 +39,7 @@ library
 test-suite test-hsreadability
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
-  build-depends:       base >=4.7 && <4.8
+  build-depends:       base >=4.6 && <4.8
                      , hsreadability
                      , aeson >=0.6.2 && <0.9
                      , text
