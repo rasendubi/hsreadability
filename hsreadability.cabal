@@ -11,6 +11,7 @@ copyright:           Copyright 2015 Alexey Shmalko
 category:            Network APIs
 build-type:          Simple
 extra-source-files:  tests/files/parser_article.json
+                   , tests/files/confidence_response.json
 cabal-version:       >=1.10
 
 library

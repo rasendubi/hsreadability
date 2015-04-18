@@ -18,6 +18,7 @@ main = defaultMain tests
 
 tests =
     [ testCase "decode parser response 1" test_parser_json1
+    , testCase "decode example confidence response" test_confidence_parser
     ]
 
 test_parser_json1 = assertEqual "decode example /parser response"
@@ -39,3 +40,12 @@ test_parser_json1 = assertEqual "decode example /parser response"
         , rendered_pages = Just 1
         })
     (decodeStrict $(embedFile "tests/files/parser_article.json"))
+
+-- readability examples provide invalid JSON for this case
+-- .7 in examples should be 0.7
+test_confidence_parser = assertEqual "decode example /confidence response"
+    (Just Confidence
+        { conf_url = "http://www.gq.com/article/12"
+        , conf_confidence = 0.7
+        })
+    (decodeStrict $(embedFile "tests/files/confidence_response.json"))
