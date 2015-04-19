@@ -29,6 +29,7 @@ module Network.Readability.Reader
     , BookmarksMeta(..)
     , Bookmark(..)
     , Article(..)
+    , TagsResponse(..)
     , Tag(..)
     , BookmarkLocation(..)
     , Order(..)
@@ -39,6 +40,9 @@ module Network.Readability.Reader
     , getBookmark
     , updateBookmark
     , deleteBookmark
+    , getBookmarkTags
+    , addBookmarkTags
+    , deleteBookmarkTag
     ) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -49,6 +53,8 @@ import Data.Maybe (catMaybes)
 import Data.Default (Default(def))
 
 import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BL
 
@@ -254,6 +260,7 @@ $(deriveFromJSON defaultOptions{ fieldLabelModifier = drop (length ("bmeta_" :: 
 data Tag = Tag
     { t_text :: Text
     , t_id :: Integer
+    , t_applied_count :: Maybe Integer
     } deriving (Eq, Show)
 
 $(deriveFromJSON defaultOptions{ fieldLabelModifier = drop (length ("t_" :: String)) } ''Tag)
@@ -377,5 +384,50 @@ deleteBookmark :: OAuth
                -> IO (Response BL.ByteString)
 deleteBookmark oauth cred bookmarkId = do
     req <- parseUrl $ apiPrefix ++ "/bookmarks/" ++ show bookmarkId
+    signedRequest <- signOAuth oauth cred $ req{ method = "DELETE" }
+    withManager $ httpLbs signedRequest
+
+data TagsResponse = TagsResponse { tr_tags :: [Tag] } deriving (Eq, Show)
+
+$(deriveFromJSON defaultOptions{ fieldLabelModifier = drop (length ("tr_" :: String)) } ''TagsResponse)
+
+-- | Get bookmark tags
+--
+-- This is a @GET@ request to @/bookmarks/{bookmarkId}/tags@.
+getBookmarkTags :: OAuth
+                -> Credential
+                -> Integer    -- ^ Bookmark id
+                -> IO (Either String TagsResponse)
+getBookmarkTags oauth cred bookmarkId = do
+    req <- parseUrl $ apiPrefix ++ "/bookmarks/" ++ show bookmarkId ++ "/tags"
+    signedRequest <- signOAuth oauth cred req
+    response <- withManager $ httpLbs signedRequest
+    return $ eitherDecode $ responseBody response
+
+-- | Add tags to bookmark.
+--
+-- This is a @POST@ request to @/bookmarks/{bookmarkId}/tags@.
+addBookmarkTags :: OAuth
+                -> Credential
+                -> Integer    -- ^ Bookmark id
+                -> [Text]   -- ^ Tags
+                -> IO (Either String TagsResponse)
+addBookmarkTags oauth cred bookmarkId tags = do
+    let params = [ ("tags", T.encodeUtf8 $ T.intercalate "," tags) ]
+    req <- parseUrl $ apiPrefix ++ "/bookmarks/" ++ show bookmarkId ++ "/tags"
+    signedRequest <- signOAuth oauth cred $ urlEncodedBody params req
+    response <- withManager $ httpLbs signedRequest
+    return $ eitherDecode $ responseBody response
+
+-- | Delete given tag from bookmark.
+--
+-- This is a @DELETE@ request to @/bookmark/{bookmarkId}/tags/{tagId}@.
+deleteBookmarkTag :: OAuth
+                  -> Credential
+                  -> Integer    -- ^ Bookmark id
+                  -> Integer    -- ^ Tag id
+                  -> IO (Response BL.ByteString)
+deleteBookmarkTag oauth cred bookmarkId tagId = do
+    req <- parseUrl $ apiPrefix ++ "/bookmarks/" ++ show bookmarkId ++ "/tags/" ++ show tagId
     signedRequest <- signOAuth oauth cred $ req{ method = "DELETE" }
     withManager $ httpLbs signedRequest
