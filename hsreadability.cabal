@@ -3,16 +3,15 @@ version:             0.1.0.0
 synopsis:            Access to the Readability API.
 
 description:         This package provides Haskell bindings to the
-                     http://readability.com/ API.
+                     <http://www.readability.com/> API.
 
 license:             MIT
 license-file:        LICENSE
-author:              Alexey Shmalko
-maintainer:          rasen.dubi@gmail.com
+author:              Alexey Shmalko <rasen.dubi@gmail.com>
+maintainer:          Alexey Shmalko <rasen.dubi@gmail.com>
 homepage:            http://github.com/rasendubi/hsreadability
 bug-reports:         http://github.com/rasendubi/hsreadability/issues
-copyright:           Copyright 2015 Alexey Shmalko
-category:            Network APIs
+category:            Network APIs, Web
 build-type:          Simple
 extra-source-files:  tests/files/parser_article.json
                    , tests/files/confidence_response.json
@@ -25,7 +24,8 @@ source-repository head
   location: git://github.com/rasendubi/hsreadability.git
 
 library
-  exposed-modules:     Network.Readability.Parser
+  exposed-modules:     Network.Readability
+                     , Network.Readability.Parser
                      , Network.Readability.Reader
                      , Network.Readability.Shortener
   build-depends:       base >=4.6 && <4.8

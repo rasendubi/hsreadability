@@ -1,8 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Readability.Shortener
-    ( Meta(..)
+    ( ShortenerMeta(..)
     , ShortenerResponse(..)
+    , Article(..)
     , shortenUrl
     , retrieveUrl
     ) where
@@ -17,23 +18,22 @@ import Network.HTTP.Conduit (parseUrl, responseBody, withManager, httpLbs, urlEn
 
 import Network.Readability.Parser (Article(..))
 
-
-data Meta = Meta
-    { meta_article :: Maybe Article
-    , meta_url :: Maybe Text -- Url
-    , meta_rdd_url :: Text -- Url
-    , meta_id :: Text
-    , meta_full_url :: Maybe Text
+data ShortenerMeta = ShortenerMeta
+    { smeta_article :: Maybe Article
+    , smeta_url :: Maybe Text -- Url
+    , smeta_rdd_url :: Text -- Url
+    , smeta_id :: Text
+    , smeta_full_url :: Maybe Text
     } deriving (Show)
 
 data ShortenerResponse = ShortenerResponse
-    { meta :: Meta
-    , messages :: [Text]
-    , success :: Bool
+    { se_meta :: ShortenerMeta
+    , se_messages :: [Text]
+    , se_success :: Bool
     } deriving (Show)
 
-$(deriveFromJSON defaultOptions{ fieldLabelModifier = drop (length ("meta_" :: String)) } ''Meta)
-$(deriveFromJSON defaultOptions ''ShortenerResponse)
+$(deriveFromJSON defaultOptions{ fieldLabelModifier = drop (length ("smeta_" :: String)) } ''ShortenerMeta)
+$(deriveFromJSON defaultOptions{ fieldLabelModifier = drop (length ("se_" :: String)) } ''ShortenerResponse)
 
 apiPrefix :: String
 apiPrefix = "https://readability.com/api/shortener/v1/urls"
