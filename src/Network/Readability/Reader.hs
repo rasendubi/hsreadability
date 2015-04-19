@@ -21,24 +21,24 @@ module Network.Readability.Reader
     , getArticle
 
     -- * Bookmarks
-    -- ** Get bookmarks
+    -- ** Types
     , BookmarksFilters(..)
     , defaultBookmarksFilters
-    , Order(..)
-    , getBookmarks
-
-    -- ***  response
     , BookmarksResponse(..)
     , BookmarksConditions(..)
     , BookmarksMeta(..)
     , Bookmark(..)
     , Article(..)
     , Tag(..)
-
-    -- ** Add bookmark
-    , addBookmark
-    -- *** Add bookmark response
     , BookmarkLocation(..)
+    , Order(..)
+
+    -- ** Requests
+    , getBookmarks
+    , addBookmark
+    , getBookmark
+    , updateBookmark
+    , deleteBookmark
     ) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -52,8 +52,8 @@ import Data.Text (Text)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BL
 
-import Network.HTTP.Conduit (httpLbs, parseUrl, responseBody, responseHeaders,
-        setQueryString, urlEncodedBody, withManager)
+import Network.HTTP.Conduit (Response, httpLbs, parseUrl, responseBody, responseHeaders,
+        setQueryString, urlEncodedBody, withManager, method)
 import Network.HTTP.Types (parseQuery)
 
 import Text.XML.XSD.DateTime (DateTime)
@@ -193,6 +193,9 @@ stringParam name = fmap $ (name,) . Just . BS.pack
 param :: (Show a) => BS.ByteString -> Maybe a -> Maybe (BS.ByteString, Maybe BS.ByteString)
 param name = fmap $ (name,) . Just . bshow
 
+param' :: (Show a) => BS.ByteString -> Maybe a -> Maybe (BS.ByteString, BS.ByteString)
+param' name = fmap $ (name,) . bshow
+
 stringListParam :: BS.ByteString -> [String] -> Maybe (BS.ByteString, Maybe BS.ByteString)
 stringListParam _ [] = Nothing
 stringListParam name xs = Just . (name,) . Just . BS.intercalate "," $ fmap BS.pack xs
@@ -330,3 +333,49 @@ addBookmark oauth cred articleUrl mFavorite mArchive mAllowDuplicates = do
     response <- withManager $ httpLbs signedRequest
     let headers = responseHeaders response
     return $ BookmarkLocation (lookup "Location" headers) (lookup "X-Article-Location" headers)
+
+-- | Get bookmark by id.
+--
+-- This is a @GET@ request to @/bookmarks/{bookmarkId}@.
+getBookmark :: OAuth
+            -> Credential
+            -> Integer    -- ^ Bookmark id
+            -> IO (Either String Bookmark)
+getBookmark oauth cred bookmarkId = do
+    req <- parseUrl (apiPrefix ++ "/bookmarks/" ++ show bookmarkId)
+    signedRequest <- signOAuth oauth cred req
+    response <- withManager $ httpLbs signedRequest
+    return $ eitherDecode $ responseBody response
+
+-- | Update bookmark.
+--
+-- This a @POST@ request to @/bookmarks/{bookmarkId}@.
+updateBookmark :: OAuth
+               -> Credential
+               -> Integer      -- ^ Bookmark id
+               -> Maybe Bool   -- ^ Favorite
+               -> Maybe Bool   -- ^ Archive
+               -> Maybe Double -- ^ Read percent
+               -> IO (Either String Bookmark)
+updateBookmark oauth cred bookmarkId mFavorite mArchive mReadPercent = do
+    let params = catMaybes
+            [ boolParam' "favorite" mFavorite
+            , boolParam' "archive" mArchive
+            , param' "read_percent" mReadPercent
+            ]
+    req <- parseUrl (apiPrefix ++ "/bookmarks/" ++ show bookmarkId)
+    signedRequest <- signOAuth oauth cred $ urlEncodedBody params req
+    response <- withManager $ httpLbs signedRequest
+    return $ eitherDecode $ responseBody response
+
+-- | Delete bookmark by id.
+--
+-- This is a @DELETE@ request to @/bookmarks/{bookmarkId}@.
+deleteBookmark :: OAuth
+               -> Credential
+               -> Integer    -- ^ Bookmark id
+               -> IO (Response BL.ByteString)
+deleteBookmark oauth cred bookmarkId = do
+    req <- parseUrl $ apiPrefix ++ "/bookmarks/" ++ show bookmarkId
+    signedRequest <- signOAuth oauth cred $ req{ method = "DELETE" }
+    withManager $ httpLbs signedRequest
