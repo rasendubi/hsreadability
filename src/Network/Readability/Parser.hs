@@ -6,7 +6,7 @@
 module Network.Readability.Parser
     ( ParserToken(..)
 
-    -- * Parse request
+    -- * Parse article
     , Article(..)
     , parse
     , parseByUrl

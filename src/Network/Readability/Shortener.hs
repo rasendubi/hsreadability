@@ -46,6 +46,8 @@ apiPrefix :: String
 apiPrefix = "https://readability.com/api/shortener/v1/urls"
 
 -- | Create a new shortened URL
+--
+-- This is a @POST@ request to @/urls@.
 shortenUrl :: String -> IO (Either String ShortenerResponse)
 shortenUrl source_url  = shortenUrlRequest $ BS.pack source_url
 
@@ -57,6 +59,8 @@ shortenUrlRequest source_url = do
     return $ eitherDecode $ responseBody response
 
 -- | Retrieve a single shortened URL
+--
+-- This is a @GET@ request to @\/urls\/{urlId}@.
 retrieveUrl :: String -> IO (Either String ShortenerResponse)
 retrieveUrl = retrieveUrlRequest
 
