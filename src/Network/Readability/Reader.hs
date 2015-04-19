@@ -2,6 +2,29 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
+-- | This module is an interface to the Readability's Reader API.
+--
+-- To get more info, visit <https://www.readability.com/developers/api/reader>.
+--
+-- Before performing any request, you should receive OAuth credentials. To do that,
+-- this module provides 'newOAuth' as well as 'xauth' for XAuth authorizations.
+--
+-- The full XAuth authorization process will be like:
+--
+-- @
+-- let auth = newAuth
+--         { oauthConsumerKey = "consumer key" -- usually, your username
+--         , oauthConsumerSecret = "consumer token"
+--         }
+-- credential <- xauth auth "username" "password"
+-- @
+--
+-- Then you should pass auth and credential to any function in this module.
+--
+-- It's preferable not doing authentication every single time. The best way is to
+-- store received credential, so you can use it later.
+--
+-- If you don't have Reader Keys, visit <https://www.readability.com/settings/account>.
 module Network.Readability.Reader
     (
     -- * Authentication
@@ -18,6 +41,9 @@ module Network.Readability.Reader
     , oauthAccessTokenEndpoint
 
     -- * Article
+    -- ** Types
+    , Article(..)
+    -- ** Requests
     , getArticle
 
     -- * Bookmarks
@@ -28,7 +54,6 @@ module Network.Readability.Reader
     , BookmarksConditions(..)
     , BookmarksMeta(..)
     , Bookmark(..)
-    , Article(..)
     , BookmarkLocation(..)
     , Order(..)
 
@@ -52,7 +77,9 @@ module Network.Readability.Reader
     , deleteTag
 
     -- * User
+    -- ** Types
     , User(..)
+    -- ** Requests
     , getUser
     ) where
 
@@ -144,6 +171,26 @@ getRequest oauth cred path params = do
     response <- withManager $ httpLbs signedRequest
     return $ eitherDecode $ responseBody $ response
 
+postRequest' :: OAuth
+             -> Credential
+             -> String
+             -> [(BS.ByteString, BS.ByteString)]
+             -> IO (Response BL.ByteString)
+postRequest' oauth cred path params = do
+    req <- parseUrl $ apiPrefix ++ path
+    signedRequest <- signOAuth oauth cred $ urlEncodedBody params req
+    withManager $ httpLbs signedRequest
+
+postRequest :: (FromJSON a)
+            => OAuth
+            -> Credential
+            -> String
+            -> [(BS.ByteString, BS.ByteString)]
+            -> IO (Either String a)
+postRequest oauth cred path params = do
+    response <- postRequest' oauth cred path params
+    return $ eitherDecode $ responseBody response
+
 deleteRequest :: OAuth
               -> Credential
               -> String
@@ -155,17 +202,24 @@ deleteRequest oauth cred path = do
 
 -- | Gets article by id.
 --
--- This is a @GET@ request to @/articles/@ endpoint.
+-- This is a @GET@ request to @\/articles\/{articleId}@ endpoint.
 getArticle :: OAuth         -- ^ Client OAuth
            -> Credential    -- ^ Access token and secret
            -> BS.ByteString -- ^ Article id
            -> IO (Either String Article)
-getArticle oauth cred articleId = do
-    req <- parseUrl (apiPrefix ++ "/articles/" ++ BS.unpack articleId)
-    signedReq <- signOAuth oauth cred req
-    response <- withManager $ httpLbs signedReq
-    return $ eitherDecode $ responseBody response
+getArticle oauth cred articleId =
+    getRequest oauth cred ("/articles/" ++ BS.unpack articleId) []
 
+-- This type represents various filters for performing 'getBookmarks' request.
+--
+-- Note: this type has 'Default' instance as well as 'defaultBookmarksFilters',
+-- so that you don't have to type in every field. Use update record syntax like this:
+--
+-- @
+-- myfilters = def { bfFavorite = Just True }
+-- -- or
+-- myfilters = defaultBookmarksFilters { bfFavorite = Just True }
+-- @
 data BookmarksFilters = BookmarksFilters
     { bfArchive :: Maybe Bool -- ^ Archieved status
     , bfFavorite :: Maybe Bool
@@ -199,6 +253,7 @@ instance Default BookmarksFilters where
         , bfUpdatedUntil = def
         }
 
+-- | This is a default value for 'BookmarksFilters'. All fields are set to 'Nothing'.
 defaultBookmarksFilters :: BookmarksFilters
 defaultBookmarksFilters = def
 
@@ -241,7 +296,11 @@ stringListParam name xs = Just . (name,) . Just . BS.intercalate "," $ fmap BS.p
 bshow :: Show a => a -> BS.ByteString
 bshow = BS.pack . show
 
-data Order = DateAddedAsc | DateAddedDesc | DateUpdatedAsc | DateUpdatedDesc
+data Order
+    = DateAddedAsc    -- ^ Sort by date added, asceding
+    | DateAddedDesc   -- ^ Sort by date added, desceding (this is default)
+    | DateUpdatedAsc  -- ^ Sort by date updated, asceding
+    | DateUpdatedDesc -- ^ Sort by date updated, desceding
     deriving (Eq)
 
 instance Show Order where
@@ -324,6 +383,9 @@ data BookmarksResponse = BookmarksResponse
 
 $(deriveFromJSON defaultOptions{ fieldLabelModifier = drop (length ("br_" :: String)) } ''BookmarksResponse)
 
+-- | Get all user bookmarks.
+--
+-- This is a @GET@ request to @\/bookmarks@.
 getBookmarks :: OAuth
              -> Credential
              -> BookmarksFilters
@@ -333,18 +395,15 @@ getBookmarks :: OAuth
              -> Maybe Bool -- ^ Only deleted
              -> [String] -- ^ Tags
              -> IO (Either String BookmarksResponse)
-getBookmarks oauth credential bfilter mOrder mPage mPerPage mOnlyDeleted tags = do
-    let params = bookmarkFiltersToParams bfilter ++ catMaybes
+getBookmarks oauth credential bfilter mOrder mPage mPerPage mOnlyDeleted tags =
+    getRequest oauth credential "/bookmarks" $
+        bookmarkFiltersToParams bfilter ++ catMaybes
             [ param "order" mOrder
             , param "page" mPage
             , param "per_page" mPerPage
             , boolParam "only_deleted" mOnlyDeleted
             , stringListParam "tags" tags
             ]
-    r <- parseUrl (apiPrefix ++ "/bookmarks")
-    signedRequest <- signOAuth oauth credential $ setQueryString params r
-    response <- withManager $ httpLbs signedRequest
-    return $ eitherDecode $ responseBody response
 
 data BookmarkLocation = BookmarkLocation
     { blLocation :: Maybe BS.ByteString
@@ -362,34 +421,28 @@ addBookmark :: OAuth
             -> Maybe Bool    -- ^ Allow duplicates
             -> IO BookmarkLocation
 addBookmark oauth cred articleUrl mFavorite mArchive mAllowDuplicates = do
-    let params = catMaybes
-            [ Just ("url", articleUrl)
-            , boolParam' "favorite" mFavorite
-            , boolParam' "archive" mArchive
-            , boolParam' "allow_duplicates" mAllowDuplicates
-            ]
-    req <- parseUrl (apiPrefix ++ "/bookmarks")
-    signedRequest <- signOAuth oauth cred $ urlEncodedBody params req
-    response <- withManager $ httpLbs signedRequest
+    response <- postRequest' oauth cred "/bookmarks" $ catMaybes
+        [ Just ("url", articleUrl)
+        , boolParam' "favorite" mFavorite
+        , boolParam' "archive" mArchive
+        , boolParam' "allow_duplicates" mAllowDuplicates
+        ]
     let headers = responseHeaders response
     return $ BookmarkLocation (lookup "Location" headers) (lookup "X-Article-Location" headers)
 
 -- | Get bookmark by id.
 --
--- This is a @GET@ request to @/bookmarks/{bookmarkId}@.
+-- This is a @GET@ request to @\/bookmarks\/{bookmarkId}@.
 getBookmark :: OAuth
             -> Credential
             -> Integer    -- ^ Bookmark id
             -> IO (Either String Bookmark)
-getBookmark oauth cred bookmarkId = do
-    req <- parseUrl (apiPrefix ++ "/bookmarks/" ++ show bookmarkId)
-    signedRequest <- signOAuth oauth cred req
-    response <- withManager $ httpLbs signedRequest
-    return $ eitherDecode $ responseBody response
+getBookmark oauth cred bookmarkId =
+    getRequest oauth cred ("/bookmarks/" ++ show bookmarkId) []
 
 -- | Update bookmark.
 --
--- This a @POST@ request to @/bookmarks/{bookmarkId}@.
+-- This a @POST@ request to @\/bookmarks\/{bookmarkId}@.
 updateBookmark :: OAuth
                -> Credential
                -> Integer      -- ^ Bookmark id
@@ -397,28 +450,22 @@ updateBookmark :: OAuth
                -> Maybe Bool   -- ^ Archive
                -> Maybe Double -- ^ Read percent
                -> IO (Either String Bookmark)
-updateBookmark oauth cred bookmarkId mFavorite mArchive mReadPercent = do
-    let params = catMaybes
-            [ boolParam' "favorite" mFavorite
-            , boolParam' "archive" mArchive
-            , param' "read_percent" mReadPercent
-            ]
-    req <- parseUrl (apiPrefix ++ "/bookmarks/" ++ show bookmarkId)
-    signedRequest <- signOAuth oauth cred $ urlEncodedBody params req
-    response <- withManager $ httpLbs signedRequest
-    return $ eitherDecode $ responseBody response
+updateBookmark oauth cred bookmarkId mFavorite mArchive mReadPercent =
+    postRequest oauth cred ("/bookmarks/" ++ show bookmarkId) $ catMaybes
+        [ boolParam' "favorite" mFavorite
+        , boolParam' "archive" mArchive
+        , param' "read_percent" mReadPercent
+        ]
 
 -- | Delete bookmark by id.
 --
--- This is a @DELETE@ request to @/bookmarks/{bookmarkId}@.
+-- This is a @DELETE@ request to @\/bookmarks\/{bookmarkId}@.
 deleteBookmark :: OAuth
                -> Credential
                -> Integer    -- ^ Bookmark id
                -> IO (Response BL.ByteString)
-deleteBookmark oauth cred bookmarkId = do
-    req <- parseUrl $ apiPrefix ++ "/bookmarks/" ++ show bookmarkId
-    signedRequest <- signOAuth oauth cred $ req{ method = "DELETE" }
-    withManager $ httpLbs signedRequest
+deleteBookmark oauth cred bookmarkId =
+    deleteRequest oauth cred ("/bookmarks/" ++ show bookmarkId)
 
 data TagsResponse = TagsResponse { tr_tags :: [Tag] } deriving (Eq, Show)
 
@@ -426,44 +473,36 @@ $(deriveFromJSON defaultOptions{ fieldLabelModifier = drop (length ("tr_" :: Str
 
 -- | Get bookmark tags
 --
--- This is a @GET@ request to @/bookmarks/{bookmarkId}/tags@.
+-- This is a @GET@ request to @\/bookmarks\/{bookmarkId}\/tags@.
 getBookmarkTags :: OAuth
                 -> Credential
                 -> Integer    -- ^ Bookmark id
                 -> IO (Either String TagsResponse)
-getBookmarkTags oauth cred bookmarkId = do
-    req <- parseUrl $ apiPrefix ++ "/bookmarks/" ++ show bookmarkId ++ "/tags"
-    signedRequest <- signOAuth oauth cred req
-    response <- withManager $ httpLbs signedRequest
-    return $ eitherDecode $ responseBody response
+getBookmarkTags oauth cred bookmarkId =
+    getRequest oauth cred ("/bookmarks/" ++ show bookmarkId ++ "/tags") []
 
 -- | Add tags to bookmark.
 --
--- This is a @POST@ request to @/bookmarks/{bookmarkId}/tags@.
+-- This is a @POST@ request to @\/bookmarks\/{bookmarkId}\/tags@.
 addBookmarkTags :: OAuth
                 -> Credential
                 -> Integer    -- ^ Bookmark id
                 -> [Text]   -- ^ Tags
                 -> IO (Either String TagsResponse)
-addBookmarkTags oauth cred bookmarkId tags = do
-    let params = [ ("tags", T.encodeUtf8 $ T.intercalate "," tags) ]
-    req <- parseUrl $ apiPrefix ++ "/bookmarks/" ++ show bookmarkId ++ "/tags"
-    signedRequest <- signOAuth oauth cred $ urlEncodedBody params req
-    response <- withManager $ httpLbs signedRequest
-    return $ eitherDecode $ responseBody response
+addBookmarkTags oauth cred bookmarkId tags = 
+    postRequest oauth cred ("/bookmarks/" ++ show bookmarkId ++ "/tags") $
+        [ ("tags", T.encodeUtf8 $ T.intercalate "," tags) ]
 
 -- | Delete given tag from bookmark.
 --
--- This is a @DELETE@ request to @/bookmark/{bookmarkId}/tags/{tagId}@.
+-- This is a @DELETE@ request to @\/bookmark\/{bookmarkId}\/tags\/{tagId}@.
 deleteBookmarkTag :: OAuth
                   -> Credential
                   -> Integer    -- ^ Bookmark id
                   -> Integer    -- ^ Tag id
                   -> IO (Response BL.ByteString)
-deleteBookmarkTag oauth cred bookmarkId tagId = do
-    req <- parseUrl $ apiPrefix ++ "/bookmarks/" ++ show bookmarkId ++ "/tags/" ++ show tagId
-    signedRequest <- signOAuth oauth cred $ req{ method = "DELETE" }
-    withManager $ httpLbs signedRequest
+deleteBookmarkTag oauth cred bookmarkId tagId =
+    deleteRequest oauth cred ("/bookmarks/" ++ show bookmarkId ++ "/tags/" ++ show tagId)
 
 -- | Retrieve all user tags.
 --
@@ -475,7 +514,7 @@ getTags oauth cred = getRequest oauth cred "/tags" []
 
 -- | Retrieve tag by id.
 --
--- This is a @GET@ request to @/tags/{tagId}@.
+-- This is a @GET@ request to @\/tags\/{tagId}@.
 getTag :: OAuth
        -> Credential
        -> Integer
@@ -484,7 +523,7 @@ getTag oauth cred tagId = getRequest oauth cred ("/tags/" ++ show tagId) []
 
 -- | Delete tag by id.
 --
--- This is a @DELETE@ request to @/tags/{tagId}@.
+-- This is a @DELETE@ request to @\/tags\/{tagId}@.
 deleteTag :: OAuth
           -> Credential
           -> Integer
@@ -507,7 +546,7 @@ $(deriveFromJSON defaultOptions{ fieldLabelModifier = drop (length ("u_" :: Stri
 
 -- | Retrieve current user info.
 --
--- This is a @GET@ request to @/user/_current@.
+-- This is a @GET@ request to @\/user\/_current@.
 getUser :: OAuth
         -> Credential
         -> IO (Either String User)
