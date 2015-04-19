@@ -21,18 +21,24 @@ module Network.Readability.Reader
     , getArticle
 
     -- * Bookmarks
+    -- ** Get bookmarks
     , BookmarksFilters(..)
     , defaultBookmarksFilters
     , Order(..)
     , getBookmarks
 
-    -- ** Bookmarks response
+    -- ***  response
     , BookmarksResponse(..)
     , BookmarksConditions(..)
     , BookmarksMeta(..)
     , Bookmark(..)
     , Article(..)
     , Tag(..)
+
+    -- ** Add bookmark
+    , addBookmark
+    -- *** Add bookmark response
+    , BookmarkLocation(..)
     ) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -46,7 +52,8 @@ import Data.Text (Text)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BL
 
-import Network.HTTP.Conduit (httpLbs, parseUrl, responseBody, setQueryString, urlEncodedBody, withManager)
+import Network.HTTP.Conduit (httpLbs, parseUrl, responseBody, responseHeaders,
+        setQueryString, urlEncodedBody, withManager)
 import Network.HTTP.Types (parseQuery)
 
 import Text.XML.XSD.DateTime (DateTime)
@@ -177,6 +184,9 @@ bookmarkFiltersToParams BookmarksFilters{..} = catMaybes
 boolParam :: BS.ByteString -> Maybe Bool -> Maybe (BS.ByteString, Maybe BS.ByteString)
 boolParam name = fmap $ (name,) . Just . bshow . fromEnum
 
+boolParam' :: BS.ByteString -> Maybe Bool -> Maybe (BS.ByteString, BS.ByteString)
+boolParam' name = fmap $ (name,) . bshow . fromEnum
+
 stringParam :: BS.ByteString -> Maybe String -> Maybe (BS.ByteString, Maybe BS.ByteString)
 stringParam name = fmap $ (name,) . Just . BS.pack
 
@@ -292,3 +302,31 @@ getBookmarks oauth credential bfilter mOrder mPage mPerPage mOnlyDeleted tags = 
     signedRequest <- signOAuth oauth credential $ setQueryString params r
     response <- withManager $ httpLbs signedRequest
     return $ eitherDecode $ responseBody response
+
+data BookmarkLocation = BookmarkLocation
+    { blLocation :: Maybe BS.ByteString
+    , blArticleLocation :: Maybe BS.ByteString
+    } deriving (Eq, Show)
+
+-- | Add bookmark.
+--
+-- This is a @POST@ request to @/bookmarks@.
+addBookmark :: OAuth
+            -> Credential
+            -> BS.ByteString -- ^ Article URL
+            -> Maybe Bool    -- ^ Favorite
+            -> Maybe Bool    -- ^ Archive
+            -> Maybe Bool    -- ^ Allow duplicates
+            -> IO BookmarkLocation
+addBookmark oauth cred articleUrl mFavorite mArchive mAllowDuplicates = do
+    let params = catMaybes
+            [ Just ("url", articleUrl)
+            , boolParam' "favorite" mFavorite
+            , boolParam' "archive" mArchive
+            , boolParam' "allow_duplicates" mAllowDuplicates
+            ]
+    req <- parseUrl (apiPrefix ++ "/bookmarks")
+    signedRequest <- signOAuth oauth cred $ urlEncodedBody params req
+    response <- withManager $ httpLbs signedRequest
+    let headers = responseHeaders response
+    return $ BookmarkLocation (lookup "Location" headers) (lookup "X-Article-Location" headers)
