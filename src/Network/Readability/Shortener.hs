@@ -1,9 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
+-- | This module is an interface to the Readability's Shortener API.
+--
+-- To get more info, visit <https://www.readability.com/developers/api/shortener>.
 module Network.Readability.Shortener
-    ( ShortenerMeta(..)
+    ( Article(..)
+
+      -- * Shorten and retrieve URL
+    , ShortenerMeta(..)
     , ShortenerResponse(..)
-    , Article(..)
     , shortenUrl
     , retrieveUrl
     ) where
@@ -18,17 +23,19 @@ import Network.HTTP.Conduit (parseUrl, responseBody, withManager, httpLbs, urlEn
 
 import Network.Readability.Parser (Article(..))
 
+-- | Contains main data
 data ShortenerMeta = ShortenerMeta
     { smeta_article :: Maybe Article
-    , smeta_url :: Maybe Text -- Url
-    , smeta_rdd_url :: Text -- Url
-    , smeta_id :: Text
-    , smeta_full_url :: Maybe Text
+    , smeta_url :: Maybe Text
+    , smeta_rdd_url :: Text         -- ^ The shortened URL
+    , smeta_id :: Text              -- ^ The id of shortened URL
+    , smeta_full_url :: Maybe Text  -- ^ The Article URL
     } deriving (Show)
 
+-- | Response from Shortener API
 data ShortenerResponse = ShortenerResponse
     { se_meta :: ShortenerMeta
-    , se_messages :: [Text]
+    , se_messages :: [Text]         -- ^ The response messages
     , se_success :: Bool
     } deriving (Show)
 
@@ -38,6 +45,7 @@ $(deriveFromJSON defaultOptions{ fieldLabelModifier = drop (length ("se_" :: Str
 apiPrefix :: String
 apiPrefix = "https://readability.com/api/shortener/v1/urls"
 
+-- | Create a new shortened URL
 shortenUrl :: String -> IO (Either String ShortenerResponse)
 shortenUrl source_url  = shortenUrlRequest $ BS.pack source_url
 
@@ -48,7 +56,7 @@ shortenUrlRequest source_url = do
     response <- withManager $ httpLbs request
     return $ eitherDecode $ responseBody response
 
-
+-- | Retrieve a single shortened URL
 retrieveUrl :: String -> IO (Either String ShortenerResponse)
 retrieveUrl = retrieveUrlRequest
 
