@@ -50,6 +50,10 @@ module Network.Readability.Reader
     , getTags
     , getTag
     , deleteTag
+
+    -- * User
+    , User(..)
+    , getUser
     ) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -127,6 +131,27 @@ xauth oauth username password = do
         token <- lookup "oauth_token" res
         secret <- lookup "oauth_token_secret" res
         newCredential <$> token <*> secret
+
+getRequest :: (FromJSON a)
+           => OAuth
+           -> Credential
+           -> String
+           -> [(BS.ByteString, Maybe BS.ByteString)]
+           -> IO (Either String a)
+getRequest oauth cred path params = do
+    req <- parseUrl $ apiPrefix ++ path
+    signedRequest <- signOAuth oauth cred $ setQueryString params req
+    response <- withManager $ httpLbs signedRequest
+    return $ eitherDecode $ responseBody $ response
+
+deleteRequest :: OAuth
+              -> Credential
+              -> String
+              -> IO (Response BL.ByteString)
+deleteRequest oauth cred path = do
+    req <- parseUrl $ apiPrefix ++ path
+    signedRequest <- signOAuth oauth cred $ req{ method = "DELETE" }
+    withManager $ httpLbs signedRequest
 
 -- | Gets article by id.
 --
@@ -466,23 +491,24 @@ deleteTag :: OAuth
           -> IO (Response BL.ByteString)
 deleteTag oauth cred tagId = deleteRequest oauth cred ("/tags/" ++ show tagId)
 
-getRequest :: (FromJSON a)
-           => OAuth
-           -> Credential
-           -> String
-           -> [(BS.ByteString, Maybe BS.ByteString)]
-           -> IO (Either String a)
-getRequest oauth cred path params = do
-    req <- parseUrl $ apiPrefix ++ path
-    signedRequest <- signOAuth oauth cred $ setQueryString params req
-    response <- withManager $ httpLbs signedRequest
-    return $ eitherDecode $ responseBody $ response
+data User = User
+    { u_username :: Text
+    , u_first_name :: Maybe Text
+    , u_second_name :: Maybe Text
+    , u_date_joined :: Maybe Text
+    , u_has_active_subscriptions :: Maybe Bool
+    , u_reading_limit :: Maybe Integer
+    , u_email_into_address :: Maybe Text
+    , u_kindle_email_address :: Maybe Text
+    , u_tags :: [Tag]
+    } deriving (Eq, Show)
 
-deleteRequest :: OAuth
-              -> Credential
-              -> String
-              -> IO (Response BL.ByteString)
-deleteRequest oauth cred path = do
-    req <- parseUrl $ apiPrefix ++ path
-    signedRequest <- signOAuth oauth cred $ req{ method = "DELETE" }
-    withManager $ httpLbs signedRequest
+$(deriveFromJSON defaultOptions{ fieldLabelModifier = drop (length ("u_" :: String)) } ''User)
+
+-- | Retrieve current user info.
+--
+-- This is a @GET@ request to @/user/_current@.
+getUser :: OAuth
+        -> Credential
+        -> IO (Either String User)
+getUser oauth cred = getRequest oauth cred "/user/_current" []
