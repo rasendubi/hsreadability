@@ -29,8 +29,6 @@ module Network.Readability.Reader
     , BookmarksMeta(..)
     , Bookmark(..)
     , Article(..)
-    , TagsResponse(..)
-    , Tag(..)
     , BookmarkLocation(..)
     , Order(..)
 
@@ -43,6 +41,15 @@ module Network.Readability.Reader
     , getBookmarkTags
     , addBookmarkTags
     , deleteBookmarkTag
+
+    -- * Tags
+    -- ** Types
+    , TagsResponse(..)
+    , Tag(..)
+    -- ** Requests
+    , getTags
+    , getTag
+    , deleteTag
     ) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -261,6 +268,7 @@ data Tag = Tag
     { t_text :: Text
     , t_id :: Integer
     , t_applied_count :: Maybe Integer
+    , t_bookmark_ids :: Maybe [Integer]
     } deriving (Eq, Show)
 
 $(deriveFromJSON defaultOptions{ fieldLabelModifier = drop (length ("t_" :: String)) } ''Tag)
@@ -429,5 +437,52 @@ deleteBookmarkTag :: OAuth
                   -> IO (Response BL.ByteString)
 deleteBookmarkTag oauth cred bookmarkId tagId = do
     req <- parseUrl $ apiPrefix ++ "/bookmarks/" ++ show bookmarkId ++ "/tags/" ++ show tagId
+    signedRequest <- signOAuth oauth cred $ req{ method = "DELETE" }
+    withManager $ httpLbs signedRequest
+
+-- | Retrieve all user tags.
+--
+-- This is a @GET@ request to @/tags@.
+getTags :: OAuth
+        -> Credential
+        -> IO (Either String TagsResponse)
+getTags oauth cred = getRequest oauth cred "/tags" []
+
+-- | Retrieve tag by id.
+--
+-- This is a @GET@ request to @/tags/{tagId}@.
+getTag :: OAuth
+       -> Credential
+       -> Integer
+       -> IO (Either String Tag)
+getTag oauth cred tagId = getRequest oauth cred ("/tags/" ++ show tagId) []
+
+-- | Delete tag by id.
+--
+-- This is a @DELETE@ request to @/tags/{tagId}@.
+deleteTag :: OAuth
+          -> Credential
+          -> Integer
+          -> IO (Response BL.ByteString)
+deleteTag oauth cred tagId = deleteRequest oauth cred ("/tags/" ++ show tagId)
+
+getRequest :: (FromJSON a)
+           => OAuth
+           -> Credential
+           -> String
+           -> [(BS.ByteString, Maybe BS.ByteString)]
+           -> IO (Either String a)
+getRequest oauth cred path params = do
+    req <- parseUrl $ apiPrefix ++ path
+    signedRequest <- signOAuth oauth cred $ setQueryString params req
+    response <- withManager $ httpLbs signedRequest
+    return $ eitherDecode $ responseBody $ response
+
+deleteRequest :: OAuth
+              -> Credential
+              -> String
+              -> IO (Response BL.ByteString)
+deleteRequest oauth cred path = do
+    req <- parseUrl $ apiPrefix ++ path
     signedRequest <- signOAuth oauth cred $ req{ method = "DELETE" }
     withManager $ httpLbs signedRequest
