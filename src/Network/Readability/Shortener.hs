@@ -10,11 +10,10 @@ module Network.Readability.Shortener
 import qualified Data.ByteString.Char8 as BS
 
 import Data.Text (Text)
-import Data.Aeson (decode)
+import Data.Aeson (eitherDecode)
 import Data.Aeson.TH (deriveFromJSON, defaultOptions, fieldLabelModifier)
 
-import Network.HTTP.Conduit (RequestBody(..), method, parseUrl, responseBody, requestBody,
-        requestHeaders, withManager, httpLbs)
+import Network.HTTP.Conduit (parseUrl, responseBody, withManager, httpLbs, urlEncodedBody)
 
 import Network.Readability.Parser (Article(..))
 
@@ -39,25 +38,22 @@ $(deriveFromJSON defaultOptions ''ShortenerResponse)
 apiPrefix :: String
 apiPrefix = "https://readability.com/api/shortener/v1/urls"
 
-shortenUrl :: String -> IO (Maybe ShortenerResponse)
+shortenUrl :: String -> IO (Either String ShortenerResponse)
 shortenUrl source_url  = shortenUrlRequest $ BS.pack source_url
 
-shortenUrlRequest :: BS.ByteString -> IO (Maybe ShortenerResponse)
+shortenUrlRequest :: BS.ByteString -> IO (Either String ShortenerResponse)
 shortenUrlRequest source_url = do
     initRequest <- parseUrl apiPrefix
-    let request = initRequest { method = "POST"
-                              , requestHeaders = [("Content-Type", "application/x-www-form-urlencoded")]
-                              , requestBody = RequestBodyBS (BS.concat [BS.pack "url=", source_url])
-                              }
+    let request = urlEncodedBody [("url", source_url)] initRequest
     response <- withManager $ httpLbs request
-    return $ decode $ responseBody response
+    return $ eitherDecode $ responseBody response
 
 
-retrieveUrl :: String -> IO (Maybe ShortenerResponse)
+retrieveUrl :: String -> IO (Either String ShortenerResponse)
 retrieveUrl = retrieveUrlRequest
 
-retrieveUrlRequest :: String -> IO (Maybe ShortenerResponse)
+retrieveUrlRequest :: String -> IO (Either String ShortenerResponse)
 retrieveUrlRequest url_id = do
     request <- parseUrl (apiPrefix ++ "/" ++ url_id)
     response <- withManager $ httpLbs request
-    return $ decode $ responseBody response
+    return $ eitherDecode $ responseBody response

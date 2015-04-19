@@ -29,7 +29,7 @@ import Control.Applicative ((<$>))
 import qualified Data.ByteString.Char8 as BS
 
 import Data.Text (Text)
-import Data.Aeson (FromJSON, decode)
+import Data.Aeson (FromJSON, eitherDecode)
 import Data.Aeson.TH (deriveFromJSON, defaultOptions, fieldLabelModifier)
 
 import Network.HTTP.Conduit (method, parseUrl, responseBody, responseHeaders, setQueryString, withManager, httpLbs)
@@ -88,13 +88,13 @@ apiPrefix = "https://readability.com/api/content/v1"
 -- | Parses content of the article by URL.
 --
 -- This is a shortcut for 'parse'.
-parseByUrl :: ParserToken -> BS.ByteString -> Maybe Int -> IO (Maybe Article)
+parseByUrl :: ParserToken -> BS.ByteString -> Maybe Int -> IO (Either String Article)
 parseByUrl token articleUrl maximumPages = parse token (Just articleUrl) Nothing maximumPages
 
 -- | Parses content of the article by article id.
 --
 -- This is a shortcut for 'parse'.
-parseById :: ParserToken -> BS.ByteString -> Maybe Int -> IO (Maybe Article)
+parseById :: ParserToken -> BS.ByteString -> Maybe Int -> IO (Either String Article)
 parseById token articleId maximumPages = parse token Nothing (Just articleId) maximumPages
 
 -- | Parses content of the given article and returns its description.
@@ -104,7 +104,7 @@ parse :: ParserToken         -- ^ Your Parser API token
       -> Maybe BS.ByteString -- ^ The article URL
       -> Maybe BS.ByteString -- ^ The article id
       -> Maybe Int           -- ^ The maximum number of pages to parse
-      -> IO (Maybe Article)
+      -> IO (Either String Article)
 parse (ParserToken token) articleUrl articleId maximumPages = readabilityRequest "/parser" params
     where
         params =
@@ -155,14 +155,14 @@ contentStatusRequest params = do
 --
 -- This a @GET@ request to @/confidence@
 getConfidence :: BS.ByteString          -- ^ Article URL
-              -> IO (Maybe Confidence)
+              -> IO (Either String Confidence)
 getConfidence article_url = readabilityRequest "/confidence" [ ("url", Just article_url) ]
 
-readabilityRequest :: FromJSON a => String -> [(BS.ByteString, Maybe BS.ByteString)] -> IO (Maybe a)
+readabilityRequest :: FromJSON a => String -> [(BS.ByteString, Maybe BS.ByteString)] -> IO (Either String a)
 readabilityRequest api params = do
     request <- setQueryString params <$> parseUrl (apiPrefix ++ api)
     response <- withManager $ httpLbs request
-    return $ decode $ responseBody response
+    return $ eitherDecode $ responseBody response
 
 maybeShowParam :: (Show a) => BS.ByteString -> Maybe a -> [(BS.ByteString, Maybe BS.ByteString)]
 maybeShowParam name = maybeParam name . Just . BS.pack . show
