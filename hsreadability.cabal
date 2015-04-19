@@ -31,10 +31,12 @@ library
   build-depends:       base >=4.6 && <4.8
                      , aeson >=0.6.2 && <0.9
                      , text
+                     , data-default
                      , http-conduit >=2.0 && <2.2
                      , bytestring >=0.9 && <0.11
                      , authenticate-oauth >=1.5 && <1.6
                      , http-types >=0.8 && <0.9
+                     , xsd >= 0.1 && <0.6
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall
